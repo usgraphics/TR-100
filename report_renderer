@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# TR-101 Report Renderer
+# Copyright © 2024, weebney & U.S. Graphics, LLC. BSD-3-Clause License.
+
+IFS=$'\n'
+
+entries=()
+left_col_entries=()
+right_col_entries=()
+
+# Read stdin
+while IFS= read -r entry; do
+    entries+=("$entry")
+done
+
+# Split into entries at \n
+for element in "${entries[@]}"; do
+    # Split lines into left and right columns at \t\t
+    IFS=$'\t;\t' read -r left right <<< "$element"
+    left_col_entries+=("$left")
+    right_col_entries+=("$right")
+done
+
+# Determine the correct widths
+function max_length {
+    local max_len=0
+    local entries=("$@")
+    for ((i = 1 ; i < ${#entries[@]} ; i++ )); do
+        local len=${#entries[i]}
+        if (( len > max_len )); then
+            max_len=$len
+        fi
+    done
+    echo "$max_len"
+}
+left_column_width=$(max_length "${left_col_entries[@]}")
+right_column_width=$(($(max_length "${right_col_entries[@]}") + 7))
+
+# Printing functions
+function print_divider {
+    local left_col=$((${1}+2))
+    local right_col=$((${2}-2))
+    local width=$((left_col+right_col))
+    local left_char="$3"
+    local split_char="$4"
+    local fill_char="$5"
+    local right_char="$6"
+    printf "%s%*s%s%*s\n" "$left_char" "$left_col" "" "$split_char" $((width - left_col)) "$right_char" | tr ' ' "$fill_char"
+}
+
+function print_header {
+    local left_col="$1"
+    local right_col="$2"
+    local width=$((left_col+right_col))
+    local title="$3"
+    local subtitle="$4"
+    local padding=$((width - ${#title} - 4))
+    local left_padding=$((padding / 2))
+    local right_padding=$((padding - left_padding))
+    printf "│%*s%s%*s│\n" $((left_padding + 1)) "" "$title" $((right_padding + 1)) ""
+    printf "│%*s%s%*s│\n" $((width/2 - 11)) "" "$subtitle" $((width/2 - $([ $((width % 2)) -ne 0 ] && echo 11 || echo 12))) ""
+}
+
+function print_entry {
+    local left_col="$1"
+    local right_col="$2"
+    local width=$((left_col+right_col))
+    printf "│ %-${left_col}s │ %-$((width - left_col - 7))s │" "$3" "$4" | tr '\n' '    '
+    printf "\n"
+}
+
+# Render header
+print_divider   "$left_column_width"    "$right_column_width"   "┌" "┬" "┬" "┐"
+print_divider   "$left_column_width"    "$right_column_width"   "├" "┴" "┴" "┤"
+print_header    "$left_column_width"    "$right_column_width"   "${left_col_entries[0]}"   "${right_col_entries[0]}"
+print_divider   "$left_column_width"    "$right_column_width"   "├" "┬" "─" "┤"
+
+# Render entries
+for ((i = 1 ; i < ${#left_col_entries[@]} ; i++ )); do
+    if [[ ${#right_col_entries[$i]} -eq 0 ]]; then
+        print_divider   "$left_column_width"    "$right_column_width"    "├" "┼" "─" "┤"
+        continue
+    fi
+    print_entry "$left_column_width"    "$right_column_width"   "${left_col_entries[$i]}"   "${right_col_entries[$i]}"
+done
+
+# Render footer
+print_divider   "$left_column_width"    "$right_column_width"    "└" "┴" "─" "┘"
