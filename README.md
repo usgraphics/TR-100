@@ -3,6 +3,8 @@ SKU: TR-100, filed under Technical Reports (TR).
 
 A machine information used at [United States Graphics Company](https://x.com/usgraphics)
 
+<img src="https://github.com/usgraphics/TR-100/assets/8161031/2a8412dd-09de-45ff-8dfb-e5c6b6f19212" width="500" />
+
 ‼️*** WARNING ***‼️
 
 Alpha release, only compatible with Debian systems with ZFS root partition running as `root` user. This is not ready for public use *at all*. But you should totally try to use it. The worst that's going to happen is it'll destroy your system. Your help is appreciated in making this project production worthy.
