@@ -18,6 +18,7 @@ Todo:
 
 Long term todo:
 - [ ] Add support for non-Debian based systems. Primarily Ubuntu, RHEL/CentOS, Arch, FreeBSD and macOS.
+    - [x] Rudimentary Arch ext4 support added
 - [ ] Allow support for multiple nics
 - [ ] Ping test? Seems like a bad idea but useful to know the health of the tubes.
 
