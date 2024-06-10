@@ -4,6 +4,8 @@
 
 # Basic configuration, change as needed
 report_title="UNITED STATES GRAPHICS COMPANY"
+last_login_ip_present=0
+zfs_present=0
 zfs_filesystem="zroot/ROOT/os"
 
 # Utilities
@@ -111,15 +113,25 @@ mem_used_gb=$(echo "$mem_used" | numfmt  --from-unit=Ki --to-unit=Gi --format %.
 mem_bar_graph=$(bar_graph "$mem_used" "$mem_total")
 
 # Disk Information
-# TODO: Add checks if zfs file system exists
-# WARNING: This script assumes that the zfs file system is located at $zfs_filesystem
-zfs_health=$(zpool status -x zroot | grep -q "is healthy" && echo  "HEALTH O.K.")
-zfs_available=$( zfs get -o value -Hp available "$zfs_filesystem")
-zfs_used=$( zfs get -o value -Hp used "$zfs_filesystem")
-zfs_available_gb=$(echo "$zfs_available" | numfmt --to-unit=G --format %.2f)
-zfs_used_gb=$(echo "$zfs_used" | numfmt --to-unit=G --format %.2f)
-disk_percent=$(printf "%.2f" "$(echo "$zfs_used / $zfs_available * 100" | bc -l)")
-disk_bar_graph=$(bar_graph "$zfs_used" "$zfs_available")
+if [ "$(command -v zfs)" ] && [ "$(grep -q "zfs" /proc/mounts)" ]; then
+    zfs_present=1
+    zfs_health=$(zpool status -x zroot | grep -q "is healthy" && echo  "HEALTH O.K.")
+    zfs_available=$(zfs get -o value -Hp available "$zfs_filesystem")
+    zfs_used=$(zfs get -o value -Hp used "$zfs_filesystem")
+    zfs_available_gb=$(echo "$zfs_available" | numfmt --to-unit=G --format %.2f)
+    zfs_used_gb=$(echo "$zfs_used" | numfmt --to-unit=G --format %.2f)
+    disk_percent=$(awk -v used="$zfs_used" -v available="$zfs_available" 'BEGIN { printf "%.2f", (used / available) * 100 }')
+    disk_bar_graph=$(bar_graph "$zfs_used" "$zfs_available")
+else
+    # Thanks https://github.com/AnarchistHoneybun
+    root_partition="/"
+    root_used=$(df -m "$root_partition" | awk 'NR==2 {print $3}')
+    root_total=$(df -m "$root_partition" | awk 'NR==2 {print $2}')
+    root_total_gb=$(awk -v total="$root_total" 'BEGIN { printf "%.2f", total / 1024 }')
+    root_used_gb=$(awk -v used="$root_used" 'BEGIN { printf "%.2f", used / 1024 }')
+    disk_percent=$(awk -v used="$root_used" -v total="$root_total" 'BEGIN { printf "%.2f", (used / total) * 100 }')
+    disk_bar_graph=$(bar_graph "$root_used" "$root_total")
+fi
 
 # Last login and Uptime
 last_login=$(lastlog -u "$USER")
@@ -163,10 +175,18 @@ printf "│ %-10s │ %-29s │\n" "CPU FREQ" "$cpu_freq GHz"
 printf "│ %-10s │ %-29s │\n" "LOAD  1m" "$cpu_1min_bar_graph"
 printf "│ %-10s │ %-29s │\n" "LOAD  5m" "$cpu_5min_bar_graph"
 printf "│ %-10s │ %-29s │\n" "LOAD 15m" "$cpu_15min_bar_graph"
-printf "├────────────┼───────────────────────────────┤\n"
-printf "│ %-10s │ %-29s │\n" "VOLUME" "$zfs_used_gb/$zfs_available_gb GB [$disk_percent%]"
-printf "│ %-10s │ %-29s │\n" "DISK USAGE" "$disk_bar_graph"
-printf "│ %-10s │ %-29s │\n" "ZFS HEALTH" "$zfs_health"
+
+if [ $zfs_present -eq 1 ]; then
+    printf "├────────────┼───────────────────────────────┤\n"
+    printf "│ %-10s │ %-29s │\n" "VOLUME" "$zfs_used_gb/$zfs_available_gb GB [$disk_percent%]"
+    printf "│ %-10s │ %-29s │\n" "DISK USAGE" "$disk_bar_graph"
+    printf "│ %-10s │ %-29s │\n" "ZFS HEALTH" "$zfs_health"
+else
+    printf "├────────────┼───────────────────────────────┤\n"
+    printf "│ %-10s │ %-29s │\n" "VOLUME" "$root_used_gb/$root_total_gb GB [$disk_percent%]"
+    printf "│ %-10s │ %-29s │\n" "DISK USAGE" "$disk_bar_graph"
+fi
+
 printf "├────────────┼───────────────────────────────┤\n"
 printf "│ %-10s │ %-29s │\n" "MEMORY" "${mem_used_gb}/${mem_total_gb} GiB [${mem_percent}%]"
 printf "│ %-10s │ %-29s │\n" "USAGE" "${mem_bar_graph}"
