@@ -5,7 +5,6 @@
 # Basic configuration, change as needed
 report_title="UNITED STATES GRAPHICS COMPANY"
 zfs_filesystem="zroot/ROOT/os"
-# -f /sbin/apfs_hfs_convert
 
 # Utilities
 bar_graph() {
@@ -70,7 +69,7 @@ elif [ "$(uname)" == "Darwin" ]; then # MACOS specific
     cpu_efficientcy_cores="$(sysctl -n hw.perflevel1.physicalcpu)"
     # Finding the frequency is a pain in the ass
     # Apple stopped supporting the sysctl -n hw.cpufrequency command for their new apple silicon chips
-    # you can get the metrics with the `powermetrics`` command but that needs to be ran as sudo
+    # you can get the metrics with the `powermetrics` command but that needs to be ran as sudo
     # And for a specific time interval...
     # cpu_freq="$(sysctl -n hw.cpufrequency | awk '{print $1/1000000000 }')"
 
@@ -127,23 +126,41 @@ elif [ "$(uname)" == "Darwin" ]; then # MACOS specific
     mem_bar_graph=$(bar_graph "$mem_used" "$mem_total")
 fi
 
-# # Disk Information
-# # TODO: Add checks if zfs file system exists
-# # WARNING: This script assumes that the zfs file system is located at $zfs_filesystem
-# zfs_health=$(zpool status -x zroot | grep -q "is healthy" && echo  "HEALTH O.K.")
-# zfs_available=$( zfs get -o value -Hp available "$zfs_filesystem")
-# zfs_used=$( zfs get -o value -Hp used "$zfs_filesystem")
-# zfs_available_gb=$(echo "$zfs_available" | numfmt --to-unit=G --format %.2f)
-# zfs_used_gb=$(echo "$zfs_used" | numfmt --to-unit=G --format %.2f)
-# disk_percent=$(printf "%.2f" "$(echo "$zfs_used / $zfs_available * 100" | bc -l)")
-# disk_bar_graph=$(bar_graph "$zfs_used" "$zfs_available")
+# Disk Information
+# TODO: Add checks if zfs file system exists
+# WARNING: This script assumes that the zfs file system is located at $zfs_filesystem
+if [ "$(uname)" == "Linux" ]; then
+    zfs_health=$(zpool status -x zroot | grep -q "is healthy" && echo  "HEALTH O.K.")
+    zfs_available=$( zfs get -o value -Hp available "$zfs_filesystem")
+    zfs_used=$( zfs get -o value -Hp used "$zfs_filesystem")
+    zfs_available_gb=$(echo "$zfs_available" | numfmt --to-unit=G --format %.2f)
+    zfs_used_gb=$(echo "$zfs_used" | numfmt --to-unit=G --format %.2f)
+    disk_percent=$(printf "%.2f" "$(echo "$zfs_used / $zfs_available * 100" | bc -l)")
+    disk_bar_graph=$(bar_graph "$zfs_used" "$zfs_available")
+elif [ "$(uname)" == "Darwin" ]; then # MACOS specific
+    apfs_available=$( diskutil apfs list | grep "Size (Capacity Ceiling): .*" | sed -n 's/.*(\(.*\)).*/\1/p')
+    apfs_used=$( diskutil apfs list | grep "Capacity In Use By Volumes: .*" | sed -n 's/.*(\(.* GB\)).*/\1/p')
+    disk_percent=$(diskutil apfs list | grep "Capacity In Use By Volumes: .*" | sed -n 's/.*(\(.*\))/\1/p' | awk '{print $1}')
 
-# # Last login and Uptime
-# last_login=$(lastlog -u root)
-# last_login_ip=$(echo "$last_login" | awk 'NR==2 {print $3}')
-# last_login_time=$(echo "$last_login" | awk 'NR==2 {print $5, $6, $7, $8, $9}')
-# last_login_formatted_time=$(date -d "$last_login_time" "+%b %-d %Y %T")
-# sys_uptime=$(uptime -p | sed 's/up\s*//; s/\s*day\(s*\)/d/; s/\s*hour\(s*\)/h/; s/\s*minute\(s*\)/m/')
+    apfs_available_num=$( echo $apfs_available | awk '{print $1 * 1024}')
+    apfs_used_num=$( echo $apfs_used | awk '{print $1}')
+    disk_bar_graph=$(bar_graph "$apfs_used_num" "$apfs_available_num")
+fi
+
+# Last login and Uptime
+if [ "$(uname)" == "Linux" ]; then
+    last_login=$(lastlog -u root)
+    last_login_ip=$(echo "$last_login" | awk 'NR==2 {print $3}')
+    last_login_time=$(echo "$last_login" | awk 'NR==2 {print $5, $6, $7, $8, $9}')
+    last_login_formatted_time=$(date -d "$last_login_time" "+%b %-d %Y %T")
+    sys_uptime=$(uptime -p | sed 's/up\s*//; s/\s*day\(s*\)/d/; s/\s*hour\(s*\)/h/; s/\s*minute\(s*\)/m/')
+elif [ "$(uname)" == "Darwin" ]; then # MACOS specific
+    last_login=$(last $USER | head -n 1) 
+    last_login_ip=$(echo "$last_login" | awk '{print $3}')
+    last_login_time=$(echo "$last_login" | awk '{print $4, $5, $6, $7}')
+    last_login_formatted_time=$(date -j -f "%a %b %d %H:%M" "$last_login_time" "+%b %-d %Y %T")
+    sys_uptime=$(system_profiler SPSoftwareDataType -detailLevel mini | grep "Time since boot" | awk -F': ' '{print $2}')
+fi
 
 # Machine Report
 if [ "$(uname)" == "Linux" ]; then
@@ -205,9 +222,8 @@ elif [ "$(uname)" == "Darwin" ]; then # MACOS specific
     printf "│ %-10s │ %-29s │\n" "LOAD  5m" "$cpu_5min_bar_graph"
     printf "│ %-10s │ %-29s │\n" "LOAD 15m" "$cpu_15min_bar_graph"
     printf "├────────────┼───────────────────────────────┤\n"
-    printf "│ %-10s │ %-29s │\n" "VOLUME" "$zfs_used_gb/$zfs_available_gb GB [$disk_percent%]"
+    printf "│ %-10s │ %-29s │\n" "VOLUME" "$apfs_used/$apfs_available GB [$disk_percent]"
     printf "│ %-10s │ %-29s │\n" "DISK USAGE" "$disk_bar_graph"
-    printf "│ %-10s │ %-29s │\n" "ZFS HEALTH" "$zfs_health"
     printf "├────────────┼───────────────────────────────┤\n"
     printf "│ %-10s │ %-29s │\n" "MEMORY" "${mem_used_gb}/${mem_total_gb} GiB [${mem_percent}%]"
     printf "│ %-10s │ %-29s │\n" "USAGE" "${mem_bar_graph}"
