@@ -15,12 +15,18 @@ bar_graph() {
     local used=$1
     local total=$2
 
-    percent=$(printf "%.2f" "$(echo "$used / $total * 100" | bc -l)")
-    num_blocks=$(echo "scale=2; ${percent}/100*${width}" | bc -l | numfmt --from=iec --format %.0f)
+    if (( total == 0 )); then
+        percent=0
+    else
+        percent=$(awk -v used="$used" -v total="$total" 'BEGIN { printf "%.2f", (used / total) * 100 }')
+    fi
+
+    num_blocks=$(awk -v percent="$percent" -v width="$width" 'BEGIN { printf "%d", (percent / 100) * width }')
+
     for (( i = 0; i < num_blocks; i++ )); do
         graph+="█"
     done
-    for (( i=0; i < width - num_blocks; i++ )); do
+    for (( i = num_blocks; i < width; i++ )); do
         graph+="░"
     done
     printf "%s" "${graph}"
@@ -58,7 +64,7 @@ cpu_15min_bar_graph=$(bar_graph "$load_avg_15min" "$cpu_cores")
 mem_total=$(grep 'MemTotal' /proc/meminfo | awk '{print $2}')
 mem_available=$(grep 'MemAvailable' /proc/meminfo | awk '{print $2}')
 mem_used=$((mem_total - mem_available))
-mem_percent=$(echo "$mem_used / $mem_total * 100" | bc -l)
+mem_percent=$(awk -v used="$mem_used" -v total="$mem_total" 'BEGIN { printf "%.2f", (used / total) * 100 }')
 mem_percent=$(printf "%.2f" "$mem_percent")
 mem_total_gb=$(echo "$mem_total" | numfmt --from-unit=Ki --to-unit=Gi --format %.2f)
 mem_available_gb=$(echo "$mem_available" | numfmt --from-unit=Ki --to-unit=Gi --format %.2f) # Not used currently
