@@ -32,21 +32,60 @@ bar_graph() {
     printf "%s" "${graph}"
 }
 
+get_ip_addr() {
+    # Try to get IPv4 address using ifconfig
+    ipv4_ifconfig=$(ifconfig | awk '
+            /^[a-z]/ {iface=$1}
+            iface != "lo:" && iface !~ /^docker/ && /inet / && !found_ipv4 {found_ipv4=1; print $2}')
+
+    # If IPv4 address not available, try IPv6 using ifconfig
+    if [ -z "$ipv4_ifconfig" ]; then
+        ipv6_ifconfig=$(ifconfig | awk '
+                /^[a-z]/ {iface=$1}
+                iface != "lo:" && iface !~ /^docker/ && /inet6 / && !found_ipv6 {found_ipv6=1; print $2}')
+    fi
+
+    # If neither IPv4 nor IPv6 address available, try to get IPv4 address using ip addr
+    if [ -z "$ipv4_ifconfig" ] && [ -z "$ipv6_ifconfig" ]; then
+        ipv4_ip_command=$(ip -o -4 addr show | awk '
+                $2 != "lo" && $2 !~ /^docker/ {split($4, a, "/"); if (!found_ipv4++) print a[1]}')
+
+        # If IPv4 address not available, try IPv6 using ip addr
+        if [ -z "$ipv4_ip_command" ]; then
+            ipv6_ip_command=$(ip -o -6 addr show | awk '
+                    $2 != "lo" && $2 !~ /^docker/ {split($4, a, "/"); if (!found_ipv6++) print a[1]}')
+        fi
+    fi
+
+    # If neither IPv4 nor IPv6 address is available, assign "No IP found"
+    if [ -z "$ipv4_ifconfig" ] && [ -z "$ipv6_ifconfig" ] && [ -z "$ipv4_ip_command" ] && [ -z "$ipv6_ip_command" ]; then
+        ip_address="No IP found"
+    else
+        # Prioritize IPv4 if available, otherwise use IPv6
+        ip_address="${ipv4_ifconfig:-$ipv6_ifconfig:-$ipv4_ip_command:-$ipv6_ip_command}"
+    fi
+    printf '%s' "$ip_address"
+}
+
 # Operating System Information
 source /etc/os-release
-os_name="${ID^} $(cat /etc/debian_version) ${VERSION_CODENAME^}"
+os_name="${ID^} ${VERSION} ${VERSION_CODENAME^}"
 os_kernel=$({ uname; uname -r; } | tr '\n' ' ')
 
 # Network Information
 net_current_user=$(whoami)
 net_hostname=$(hostname -f)
-net_machine_ip=$(hostname -I)
-net_client_ip=$(who am i --ips | awk '{print $5}')
-net_dns_ip=$(grep 'nameserver' /etc/resolv.conf | awk '{print $2}')
+net_machine_ip=$(get_ip_addr)
+net_client_ip=$(who am i | awk '{print $5}' | tr -d '()')
+net_dns_ip=($(grep '^nameserver [0-9.]' /etc/resolv.conf | awk '{print $2}'))
 
 # CPU Information
 cpu_model="$(lscpu | grep 'Model name' | grep -v 'BIOS' | cut -f 2 -d ':' | awk '{print $1 " "  $2 " " $3}')"
 cpu_hypervisor="$(lscpu | grep 'Hypervisor vendor' | cut -f 2 -d ':' | awk '{$1=$1}1')"
+if [ -z "$cpu_hypervisor" ]; then
+    cpu_hypervisor="Bare Metal"
+fi
+
 cpu_cores="$(nproc --all)"
 cpu_cores_per_socket="$(lscpu | grep 'Core(s) per socket' | cut -f 2 -d ':'| awk '{$1=$1}1')"
 cpu_sockets="$(lscpu | grep 'Socket(s)' | cut -f 2 -d ':' | awk '{$1=$1}1')"
@@ -83,9 +122,17 @@ disk_percent=$(printf "%.2f" "$(echo "$zfs_used / $zfs_available * 100" | bc -l)
 disk_bar_graph=$(bar_graph "$zfs_used" "$zfs_available")
 
 # Last login and Uptime
-last_login=$(lastlog -u root)
+last_login=$(lastlog -u "$USER")
 last_login_ip=$(echo "$last_login" | awk 'NR==2 {print $3}')
-last_login_time=$(echo "$last_login" | awk 'NR==2 {print $5, $6, $7, $8, $9}')
+
+# Check if last_login_ip is an IP address
+if [[ "$last_login_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    last_login_ip_present=1
+    last_login_time=$(echo "$last_login" | awk 'NR==2 {print $5, $6, $7, $8, $9}')
+else
+    last_login_time=$(echo "$last_login" | awk 'NR==2 {print $3, $4, $5, $6, $7}')
+fi
+
 last_login_formatted_time=$(date -d "$last_login_time" "+%b %-d %Y %T")
 sys_uptime=$(uptime -p | sed 's/up\s*//; s/\s*day\(s*\)/d/; s/\s*hour\(s*\)/h/; s/\s*minute\(s*\)/m/')
 
@@ -101,7 +148,12 @@ printf "├────────────┼──────────
 printf "│ %-10s │ %-29s │\n" "HOSTNAME" "$net_hostname"
 printf "│ %-10s │ %-29s │\n" "MACHINE IP" "$net_machine_ip"
 printf "│ %-10s │ %-29s │\n" "CLIENT  IP" "$net_client_ip"
-printf "│ %-10s │ %-29s │\n" "DNS     IP" "$net_dns_ip"
+
+# Sometimes we have multiple dns IPs
+for dns_num in "${!net_dns_ip[@]}"; do
+    printf "│ %-10s │ %-29s │\n" "DNS  IP $(($dns_num + 1))" "${net_dns_ip[dns_num]}"
+done
+
 printf "│ %-10s │ %-29s │\n" "USER" "$net_current_user"
 printf "├────────────┼───────────────────────────────┤\n"
 printf "│ %-10s │ %-29s │\n" "PROCESSOR" "$cpu_model"
@@ -120,6 +172,10 @@ printf "│ %-10s │ %-29s │\n" "MEMORY" "${mem_used_gb}/${mem_total_gb} GiB 
 printf "│ %-10s │ %-29s │\n" "USAGE" "${mem_bar_graph}"
 printf "├────────────┼───────────────────────────────┤\n"
 printf "│ %-10s │ %-29s │\n" "LAST LOGIN" "$last_login_formatted_time"
-printf "│ %-10s │ %-29s │\n" "" "$last_login_ip"
+
+if [ $last_login_ip_present -eq 1 ]; then
+    printf "│ %-10s │ %-29s │\n" "" "$last_login_ip"
+fi
+
 printf "│ %-10s │ %-29s │\n" "UPTIME" "$sys_uptime"
 printf "└────────────┴───────────────────────────────┘\n"
