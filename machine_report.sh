@@ -154,11 +154,12 @@ last_login_ip=$(echo "$last_login" | awk 'NR==2 {print $3}')
 if [[ "$last_login_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     last_login_ip_present=1
     last_login_time=$(echo "$last_login" | awk 'NR==2 {print $5, $6, $7, $8, $9}')
+    last_login_formatted_time=$(date -d "$last_login_time" "+%b %-d %Y %T")
 else
     last_login_time=$(echo "$last_login" | awk 'NR==2 {print $3, $4, $5, $6, $7}')
+    last_login_formatted_time=$(date -d "$last_login_time" "+%b %-d %Y %T")
 fi
 
-last_login_formatted_time=$(date -d "$last_login_time" "+%b %-d %Y %T")
 sys_uptime=$(uptime -p | sed 's/up\s*//; s/\s*day\(s*\)/d/; s/\s*hour\(s*\)/h/; s/\s*minute\(s*\)/m/')
 
 # Machine Report
