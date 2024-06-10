@@ -35,37 +35,43 @@ bar_graph() {
 }
 
 get_ip_addr() {
-    # Try to get IPv4 address using ifconfig
-    ipv4_ifconfig=$(ifconfig | awk '
+    # Initialize variables
+    ipv4_address=""
+    ipv6_address=""
+
+    # Check if ifconfig command exists
+    if command -v ifconfig &> /dev/null; then
+        # Try to get IPv4 address using ifconfig
+        ipv4_address=$(ifconfig | awk '
             /^[a-z]/ {iface=$1}
             iface != "lo:" && iface !~ /^docker/ && /inet / && !found_ipv4 {found_ipv4=1; print $2}')
 
-    # If IPv4 address not available, try IPv6 using ifconfig
-    if [ -z "$ipv4_ifconfig" ]; then
-        ipv6_ifconfig=$(ifconfig | awk '
+        # If IPv4 address not available, try IPv6 using ifconfig
+        if [ -z "$ipv4_address" ]; then
+            ipv6_address=$(ifconfig | awk '
                 /^[a-z]/ {iface=$1}
                 iface != "lo:" && iface !~ /^docker/ && /inet6 / && !found_ipv6 {found_ipv6=1; print $2}')
-    fi
-
-    # If neither IPv4 nor IPv6 address available, try to get IPv4 address using ip addr
-    if [ -z "$ipv4_ifconfig" ] && [ -z "$ipv6_ifconfig" ]; then
-        ipv4_ip_command=$(ip -o -4 addr show | awk '
-                $2 != "lo" && $2 !~ /^docker/ {split($4, a, "/"); if (!found_ipv4++) print a[1]}')
+        fi
+    elif command -v ip &> /dev/null; then
+        # Try to get IPv4 address using ip addr
+        ipv4_address=$(ip -o -4 addr show | awk '
+            $2 != "lo" && $2 !~ /^docker/ {split($4, a, "/"); if (!found_ipv4++) print a[1]}')
 
         # If IPv4 address not available, try IPv6 using ip addr
-        if [ -z "$ipv4_ip_command" ]; then
-            ipv6_ip_command=$(ip -o -6 addr show | awk '
-                    $2 != "lo" && $2 !~ /^docker/ {split($4, a, "/"); if (!found_ipv6++) print a[1]}')
+        if [ -z "$ipv4_address" ]; then
+            ipv6_address=$(ip -o -6 addr show | awk '
+                $2 != "lo" && $2 !~ /^docker/ {split($4, a, "/"); if (!found_ipv6++) print a[1]}')
         fi
     fi
 
     # If neither IPv4 nor IPv6 address is available, assign "No IP found"
-    if [ -z "$ipv4_ifconfig" ] && [ -z "$ipv6_ifconfig" ] && [ -z "$ipv4_ip_command" ] && [ -z "$ipv6_ip_command" ]; then
+    if [ -z "$ipv4_address" ] && [ -z "$ipv6_address" ]; then
         ip_address="No IP found"
     else
         # Prioritize IPv4 if available, otherwise use IPv6
-        ip_address="${ipv4_ifconfig:-$ipv6_ifconfig:-$ipv4_ip_command:-$ipv6_ip_command}"
+        ip_address="${ipv4_address:-$ipv6_address}"
     fi
+
     printf '%s' "$ip_address"
 }
 
@@ -76,7 +82,14 @@ os_kernel=$({ uname; uname -r; } | tr '\n' ' ')
 
 # Network Information
 net_current_user=$(whoami)
-net_hostname=$(hostname -f)
+if ! [ "$(command -v hostname)" ]; then
+    net_hostname=$(grep -w "$(uname -n)" /etc/hosts | awk '{print $2}' | head -n 1)
+else
+    net_hostname=$(hostname -f)
+fi
+
+if [ -z "$net_hostname" ]; then net_hostname="Not Defined"; fi
+
 net_machine_ip=$(get_ip_addr)
 net_client_ip=$(who am i | awk '{print $5}' | tr -d '()')
 net_dns_ip=($(grep '^nameserver [0-9.]' /etc/resolv.conf | awk '{print $2}'))
