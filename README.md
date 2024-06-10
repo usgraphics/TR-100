@@ -46,9 +46,17 @@ This script is designed for us, for our internal use.
 - VMWare Hypervisor
 - `root` user.
 
+# MacOS
+
+![SS_6A3A9LrQ_1127PM@2x](https://github.com/arturovilla/TR-100-macm3/assets/60208172/3fcb0baa-8113-4621-bc57-79a7a36f4cdc)
+Some things I could not get to look the same:
+- Hypervisor - didnt know how to get the vendor names
+- CPU freq, the P and E cores made this a bit hard without using sudo commands
+
+
 # Dependencies
 
-- `lscpu`
+- `lscpu` not available on Macos from what I could tell
 - `bc` (For math in bash)
 
 If your system is different, things might break. Look up the offending line and you can try to fix it for your specific system.
