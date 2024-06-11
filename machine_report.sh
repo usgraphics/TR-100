@@ -99,10 +99,18 @@ printf "├────────────┼──────────
 printf "│ %-10s │ %-29s │\n" "HOSTNAME" "$net_hostname"
 printf "│ %-10s │ %-29s │\n" "MACHINE IP" "$net_machine_ip"
 printf "│ %-10s │ %-29s │\n" "CLIENT  IP" "$net_client_ip"
-printf "│ %-10s │ %-29s │\n" "DNS     IP" "${net_dns_ips[0]}"
-for ((i=1; i<${#net_dns_ips[@]}; i++)); do
-    printf "│ %-10s │ %-29s │\n" "" "${net_dns_ips[$i]}"
-done
+dns_ip_count=${#net_dns_ips[@]}
+if [ "$dns_ip_count" -eq 1 ]; then
+    printf "│ %-10s │ %-29s │\n" "DNS     IP" "${net_dns_ips[0]}"
+else
+    for ((i=0; i<$dns_ip_count; i++)); do
+        if [ "$i" -eq 0 ]; then
+            printf "│ %-10s │ %-29s │\n" "DNS IP/s 1" "${net_dns_ips[$i]}"
+        else
+            printf "│ %-10s │ %-29s │\n" "         $((i+1))" "${net_dns_ips[$i]}"
+        fi
+    done
+fi
 printf "│ %-10s │ %-29s │\n" "USER" "$net_current_user"
 printf "├────────────┼───────────────────────────────┤\n"
 printf "│ %-10s │ %-29s │\n" "PROCESSOR" "$cpu_model"
