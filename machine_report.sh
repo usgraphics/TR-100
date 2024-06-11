@@ -92,6 +92,9 @@ if [ -z "$net_hostname" ]; then net_hostname="Not Defined"; fi
 
 net_machine_ip=$(get_ip_addr)
 net_client_ip=$(who am i | awk '{print $5}' | tr -d '()')
+if [ -z "$net_client_ip" ]; then
+    net_client_ip="Not connected"
+fi
 net_dns_ip=($(grep '^nameserver [0-9.]' /etc/resolv.conf | awk '{print $2}'))
 
 # CPU Information
