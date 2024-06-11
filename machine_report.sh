@@ -74,7 +74,7 @@ cpu_info() {
     cpu_model="$(lscpu | grep 'Model name' | grep -v 'BIOS' | cut -f 2 -d ':' | awk '{print $1 " "  $2 " " $3}')"
     cpu_hypervisor="$(lscpu | grep 'Hypervisor vendor' | cut -f 2 -d ':' | awk '{$1=$1}1')"
     if [ -z "$cpu_hypervisor" ]; then
-        cpu_hypervisor="none"
+        cpu_hypervisor="Bare Metal"
     fi
     cpu_cores="$(nproc --all)"
     cpu_cores_per_socket="$(lscpu | grep 'Core(s) per socket' | cut -f 2 -d ':'| awk '{$1=$1}1')"
@@ -138,7 +138,7 @@ arch_last_login() {
         true
     elif [[ "$last_login_ip" =~ ^:[0-9]+$ ]]; then
         # It's a local display name like :1 or :0
-        last_login_ip="local"
+        last_login_ip="Local"
     else
         # Handle unexpected cases
         last_login_ip="unknown"
@@ -170,7 +170,7 @@ if [[ "$net_client_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     true
 elif [[ "$net_client_ip" =~ ^:[0-9]+$ ]]; then
     # It's a local display name like :1 or :0
-    net_client_ip="local"
+    net_client_ip="Local"
 else
     # Handle unexpected cases
     net_client_ip="unknown"
