@@ -36,7 +36,11 @@ net_current_user=$(whoami)
 net_hostname=$(hostname -f)
 net_machine_ip=$(hostname -I)
 net_client_ip=$(who am i --ips | awk '{print $5}')
-net_dns_ip=$(grep 'nameserver' /etc/resolv.conf | awk '{print $2}')
+net_dns_ips=()
+while read -r line; do
+    ip=$(echo "$line" | awk '{print $2}')
+    net_dns_ips+=("$ip")
+done < <(grep 'nameserver' /etc/resolv.conf)
 
 # CPU Information
 cpu_model="$(lscpu | grep 'Model name' | grep -v 'BIOS' | cut -f 2 -d ':' | awk '{print $1 " "  $2 " " $3}')"
@@ -95,7 +99,10 @@ printf "├────────────┼──────────
 printf "│ %-10s │ %-29s │\n" "HOSTNAME" "$net_hostname"
 printf "│ %-10s │ %-29s │\n" "MACHINE IP" "$net_machine_ip"
 printf "│ %-10s │ %-29s │\n" "CLIENT  IP" "$net_client_ip"
-printf "│ %-10s │ %-29s │\n" "DNS     IP" "$net_dns_ip"
+printf "│ %-10s │ %-29s │\n" "DNS     IP" "${net_dns_ips[0]}"
+for ((i=1; i<${#net_dns_ips[@]}; i++)); do
+    printf "│ %-10s │ %-29s │\n" "" "${net_dns_ips[$i]}"
+done
 printf "│ %-10s │ %-29s │\n" "USER" "$net_current_user"
 printf "├────────────┼───────────────────────────────┤\n"
 printf "│ %-10s │ %-29s │\n" "PROCESSOR" "$cpu_model"
