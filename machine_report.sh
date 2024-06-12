@@ -160,6 +160,10 @@ if [[ "$last_login_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     last_login_time=$(echo "$last_login" | awk 'NR==2 {print $6, $7, $10, $8}')
 else
     last_login_time=$(echo "$last_login" | awk 'NR==2 {print $4, $5, $8, $6}')
+    # Check for **Never logged in** edge case
+    if [ "$last_login_time" = "in**" ]; then
+        last_login_time="Never logged in"
+    fi
 fi
 
 sys_uptime=$(uptime -p | sed 's/up\s*//; s/\s*day\(s*\)/d/; s/\s*hour\(s*\)/h/; s/\s*minute\(s*\)/m/')
