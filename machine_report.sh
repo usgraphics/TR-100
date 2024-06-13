@@ -2,11 +2,6 @@
 # TR-100 Machine Report
 # Copyright © 2024, U.S. Graphics, LLC. BSD-3-Clause License.
 
-# If not running interactively, don't do anything
-# This prevents rsync/scp/sftp from breaking when this script
-# is sourced.
-[[ $- != *i* ]] && return
-
 # Basic configuration, change as needed
 report_title="UNITED STATES GRAPHICS COMPANY"
 last_login_ip_present=0
