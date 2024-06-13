@@ -49,13 +49,10 @@ This script is designed for us, for our internal use.
 # Dependencies
 
 - `lscpu`
-- `bc` (For math in bash)
 
 If your system is different, things might break. Look up the offending line and you can try to fix it for your specific system.
 
 # Installation
-
-Install `bc`: `apt install bc`.
 
 For login sessions over ssh, reference the script `~/.machine_report.sh` in your `.bashrc` file. Make sure the script is executable by running `chmod +x ~/.machine_report.sh`.
 
@@ -67,6 +64,16 @@ Copy `machine_report.sh` from this repository and add it to `~/.machine_report.s
 
 # Machine Report     <---------- Add this line at the end of it
 ~/.machine_report.sh
+```
+
+**DISCLAIMER**  
+This line should be somewhere above all other code in your `bashrc` file, to ensure
+that scripts don't run when you use programs such as rsync, scp, sftp and others
+that use a remote shell.
+
+```bash
+# If not running interactively, don't do anything
+[[ $- != *i* ]] && return
 ```
 
 # License
