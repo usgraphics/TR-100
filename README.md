@@ -44,18 +44,13 @@ This script is designed for us, for our internal use.
 - Debian OS
 - ZFS installed on root partition
 - VMWare Hypervisor
-- `root` user.
 
 # Dependencies
-
 - `lscpu`
-- `bc` (For math in bash)
 
 If your system is different, things might break. Look up the offending line and you can try to fix it for your specific system.
 
 # Installation
-
-Install `bc`: `apt install bc`.
 
 For login sessions over ssh, reference the script `~/.machine_report.sh` in your `.bashrc` file. Make sure the script is executable by running `chmod +x ~/.machine_report.sh`.
 
