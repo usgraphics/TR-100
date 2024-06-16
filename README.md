@@ -65,8 +65,9 @@ Copy `machine_report.sh` from this repository and add it to `~/.machine_report.s
 # ~/.bashrc: executed by bash(1) for non-login shells.
 # This is your .bashrc file.
 
-# Machine Report     <---------- Add this line at the end of it
-~/.machine_report.sh
+# Machine Report
+[[ $- != *i* ]] && return # If using non-interactive shell, return
+~/.machine_report.sh # Run machine report
 ```
 
 # License
