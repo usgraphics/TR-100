@@ -57,12 +57,13 @@ For login sessions over ssh, reference the script `~/.machine_report.sh` in your
 Copy `machine_report.sh` from this repository and add it to `~/.machine_report.sh` ('.' for hidden file if you wish). Reference it in your `.bashrc` file as follows (example bashrc file):
 
 ```bash
-# ~/.bashrc: executed by bash(1) for non-login shells.
-# This is your .bashrc file.
+# This is your .bashrc file. 
+# Add the following lines anywhere in the file.
 
-# Machine Report
-[[ $- != *i* ]] && return # If using non-interactive shell, return
-~/.machine_report.sh # Run machine report
+# Run Machine Report only when in interactive mode
+if [[ $- == *i* ]]; then
+    ~/.machine_report.sh
+fi
 ```
 
 # License
