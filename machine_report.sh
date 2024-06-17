@@ -144,7 +144,7 @@ PRINT_DATA() {
     # Truncate or pad data
     local data_len=${#data}
     if (( data_len > MAX_DATA_LEN )); then
-        data=$(echo "$data" | cut -c 1-$((MAX_DATA_LEN-3)))...
+        data=$(echo "$data" | cut -c 1-$((MAX_DATA_LEN-3-2)))...
     else
         data=$(printf "%-${max_data_len}s" "$data")
     fi
@@ -263,7 +263,6 @@ fi
 cpu_cores="$(nproc --all)"
 cpu_cores_per_socket="$(lscpu | grep 'Core(s) per socket' | cut -f 2 -d ':'| awk '{$1=$1}1')"
 cpu_sockets="$(lscpu | grep 'Socket(s)' | cut -f 2 -d ':' | awk '{$1=$1}1')"
-# cpu_freq="$(grep 'cpu MHz' /proc/cpuinfo | cut -f 2 -d ':' | awk 'NR==1' | awk '{$1=$1}1' | numfmt --from-unit=M --to-unit=G --format %.2f)"
 cpu_freq="$(grep 'cpu MHz' /proc/cpuinfo | cut -f 2 -d ':' | awk 'NR==1 { printf "%.2f", $1 / 1000 }')" # Convert from M to G units
 
 load_avg_1min=$(uptime | awk -F'load average: ' '{print $2}' | cut -d ',' -f1 | tr -d ' ')
