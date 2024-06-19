@@ -2,6 +2,15 @@
 # TR-100 Machine Report
 # Copyright © 2024, U.S. Graphics, LLC. BSD-3-Clause License.
 
+# Global variables
+MIN_NAME_LEN=5
+MAX_NAME_LEN=13
+
+MIN_DATA_LEN=20
+MAX_DATA_LEN=32
+
+BORDERS_AND_PADDING=7
+
 # Basic configuration, change as needed
 report_title="UNITED STATES GRAPHICS COMPANY"
 last_login_ip_present=0
@@ -9,10 +18,157 @@ zfs_present=0
 zfs_filesystem="zroot/ROOT/os"
 
 # Utilities
+max_length() {
+    local max_len=0
+    local len
+
+    for str in "$@"; do
+        len=${#str}
+        if (( len > max_len )); then
+            max_len=$len
+        fi
+    done
+
+    if [ $max_len -lt $MAX_DATA_LEN ]; then
+        printf '%s' "$max_len"
+    else
+        printf '%s' "$MAX_DATA_LEN"
+    fi
+}
+
+# All data strings must go here
+set_current_len() {
+    CURRENT_LEN=$(max_length                                     \
+        "$report_title"                                          \
+        "$os_name"                                               \
+        "$os_kernel"                                             \
+        "$net_hostname"                                          \
+        "$net_machine_ip"                                        \
+        "$net_client_ip"                                         \
+        "$net_current_user"                                      \
+        "$cpu_model"                                             \
+        "$cpu_cores_per_socket vCPU(s) / $cpu_sockets Socket(s)" \
+        "$cpu_hypervisor"                                        \
+        "$cpu_freq GHz"                                          \
+        "$cpu_1min_bar_graph"                                    \
+        "$cpu_5min_bar_graph"                                    \
+        "$cpu_15min_bar_graph"                                   \
+        "$zfs_used_gb/$zfs_available_gb GB [$disk_percent%]"     \
+        "$disk_bar_graph"                                        \
+        "$zfs_health"                                            \
+        "$root_used_gb/$root_total_gb GB [$disk_percent%]"       \
+        "${mem_used_gb}/${mem_total_gb} GiB [${mem_percent}%]"   \
+        "${mem_bar_graph}"                                       \
+        "$last_login_time"                                       \
+        "$last_login_ip"                                         \
+        "$last_login_ip"                                         \
+        "$sys_uptime"                                            \
+    )
+}
+
+PRINT_HEADER() {
+    local length=$((CURRENT_LEN+MAX_NAME_LEN+BORDERS_AND_PADDING))
+
+    local top="┌"
+    local bottom="├"
+    for (( i = 0; i < length - 2; i++ )); do
+        top+="┬"
+        bottom+="┴"
+    done
+    top+="┐"
+    bottom+="┤"
+
+    printf '%s\n' "$top"
+    printf '%s\n' "$bottom"
+}
+
+PRINT_CENTERED_DATA() {
+    local max_len=$((CURRENT_LEN+MAX_NAME_LEN-BORDERS_AND_PADDING))
+    local text="$1"
+    local total_width=$((max_len + 12))
+
+    local text_len=${#text}
+    local padding_left=$(( (total_width - text_len) / 2 ))
+    local padding_right=$(( total_width - text_len - padding_left ))
+
+    printf "│%${padding_left}s%s%${padding_right}s│\n" "" "$text" ""
+}
+
+PRINT_DIVIDER() {
+    # either "top" or "bottom", no argument means middle divider
+    local side="$1"
+    case "$side" in
+        "top")
+            local left_symbol="├"
+            local middle_symbol="┬"
+            local right_symbol="┤"
+            ;;
+        "bottom")
+            local left_symbol="└"
+            local middle_symbol="┴"
+            local right_symbol="┘"
+            ;;
+        *)
+            local left_symbol="├"
+            local middle_symbol="┼"
+            local right_symbol="┤"
+    esac
+
+    local length=$((CURRENT_LEN+MAX_NAME_LEN+BORDERS_AND_PADDING))
+    local divider="$left_symbol"
+    for (( i = 0; i < length - 3; i++ )); do
+        divider+="─"
+        if [ "$i" -eq 14 ]; then
+            divider+="$middle_symbol"
+        fi
+    done
+    divider+="$right_symbol"
+    printf '%s\n' "$divider"
+}
+
+PRINT_DATA() {
+    local name="$1"
+    local data="$2"
+    local max_data_len=$CURRENT_LEN
+
+    # Pad name
+    local name_len=${#name}
+    if (( name_len < MIN_NAME_LEN )); then
+        name=$(printf "%-${MIN_NAME_LEN}s" "$name")
+    elif (( name_len > MAX_NAME_LEN )); then
+        name=$(echo "$name" | cut -c 1-$((MAX_NAME_LEN-3)))...
+    else
+        name=$(printf "%-${MAX_NAME_LEN}s" "$name")
+    fi
+
+    # Truncate or pad data
+    local data_len=${#data}
+    if (( data_len >= MAX_DATA_LEN || data_len == MAX_DATA_LEN-1 )); then
+        data=$(echo "$data" | cut -c 1-$((MAX_DATA_LEN-3-2)))...
+    else
+        data=$(printf "%-${max_data_len}s" "$data")
+    fi
+
+    printf "│ %-${MAX_NAME_LEN}s │ %s │\n" "$name" "$data"
+}
+
+PRINT_FOOTER() {
+    local length=$((CURRENT_LEN+MAX_NAME_LEN+BORDERS_AND_PADDING))
+    local footer="└"
+    for (( i = 0; i < length - 3; i++ )); do
+        footer+="─"
+        if [ "$i" -eq 14 ]; then
+            footer+="┴"
+        fi
+    done
+    footer+="┘"
+    printf '%s\n' "$footer"
+}
+
 bar_graph() {
     local percent
     local num_blocks
-    local width=29
+    local width=$CURRENT_LEN
     local graph=""
     local used=$1
     local total=$2
@@ -98,7 +254,7 @@ fi
 net_dns_ip=($(grep '^nameserver [0-9.]' /etc/resolv.conf | awk '{print $2}'))
 
 # CPU Information
-cpu_model="$(lscpu | grep 'Model name' | grep -v 'BIOS' | cut -f 2 -d ':' | awk '{print $1 " "  $2 " " $3}')"
+cpu_model="$(lscpu | grep 'Model name' | grep -v 'BIOS' | cut -f 2 -d ':' | awk '{print $1 " "  $2 " " $3 " " $4}')"
 cpu_hypervisor="$(lscpu | grep 'Hypervisor vendor' | cut -f 2 -d ':' | awk '{$1=$1}1')"
 if [ -z "$cpu_hypervisor" ]; then
     cpu_hypervisor="Bare Metal"
@@ -107,16 +263,11 @@ fi
 cpu_cores="$(nproc --all)"
 cpu_cores_per_socket="$(lscpu | grep 'Core(s) per socket' | cut -f 2 -d ':'| awk '{$1=$1}1')"
 cpu_sockets="$(lscpu | grep 'Socket(s)' | cut -f 2 -d ':' | awk '{$1=$1}1')"
-# cpu_freq="$(grep 'cpu MHz' /proc/cpuinfo | cut -f 2 -d ':' | awk 'NR==1' | awk '{$1=$1}1' | numfmt --from-unit=M --to-unit=G --format %.2f)"
 cpu_freq="$(grep 'cpu MHz' /proc/cpuinfo | cut -f 2 -d ':' | awk 'NR==1 { printf "%.2f", $1 / 1000 }')" # Convert from M to G units
 
 load_avg_1min=$(uptime | awk -F'load average: ' '{print $2}' | cut -d ',' -f1 | tr -d ' ')
 load_avg_5min=$(uptime | awk -F'load average: ' '{print $2}' | cut -d ',' -f2 | tr -d ' ')
 load_avg_15min=$(uptime| awk -F'load average: ' '{print $2}' | cut -d ',' -f3 | tr -d ' ')
-
-cpu_1min_bar_graph=$(bar_graph "$load_avg_1min" "$cpu_cores")
-cpu_5min_bar_graph=$(bar_graph "$load_avg_5min" "$cpu_cores")
-cpu_15min_bar_graph=$(bar_graph "$load_avg_15min" "$cpu_cores")
 
 # Memory Information
 mem_total=$(grep 'MemTotal' /proc/meminfo | awk '{print $2}')
@@ -127,7 +278,6 @@ mem_percent=$(printf "%.2f" "$mem_percent")
 mem_total_gb=$(echo "$mem_total" | awk '{ printf "%.2f", $1 / (1024 * 1024) }') # (From Ki to Gi units)
 mem_available_gb=$(echo "$mem_available" | awk '{ printf "%.2f", $1 / (1024 * 1024) }') # (From Ki to Gi units) Not used currently
 mem_used_gb=$(echo "$mem_used" | awk '{ printf "%.2f", $1 / (1024 * 1024) }')
-mem_bar_graph=$(bar_graph "$mem_used" "$mem_total")
 
 # Disk Information
 if [ "$(command -v zfs)" ] && [ "$(grep -q "zfs" /proc/mounts)" ]; then
@@ -138,7 +288,6 @@ if [ "$(command -v zfs)" ] && [ "$(grep -q "zfs" /proc/mounts)" ]; then
     zfs_available_gb=$(echo "$zfs_available" | awk '{ printf "%.2f", $1 / (1024 * 1024 * 1024) }') # (To G units)
     zfs_used_gb=$(echo "$zfs_used" | awk '{ printf "%.2f", $1 / (1024 * 1024 * 1024) }') # (To G units)
     disk_percent=$(awk -v used="$zfs_used" -v available="$zfs_available" 'BEGIN { printf "%.2f", (used / available) * 100 }')
-    disk_bar_graph=$(bar_graph "$zfs_used" "$zfs_available")
 else
     # Thanks https://github.com/AnarchistHoneybun
     root_partition="/"
@@ -147,7 +296,6 @@ else
     root_total_gb=$(awk -v total="$root_total" 'BEGIN { printf "%.2f", total / 1024 }')
     root_used_gb=$(awk -v used="$root_used" 'BEGIN { printf "%.2f", used / 1024 }')
     disk_percent=$(awk -v used="$root_used" -v total="$root_total" 'BEGIN { printf "%.2f", (used / total) * 100 }')
-    disk_bar_graph=$(bar_graph "$root_used" "$root_total")
 fi
 
 # Last login and Uptime
@@ -168,54 +316,68 @@ fi
 
 sys_uptime=$(uptime -p | sed 's/up\s*//; s/\s*day\(s*\)/d/; s/\s*hour\(s*\)/h/; s/\s*minute\(s*\)/m/')
 
-# Machine Report
-printf "┌┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┬┐\n"
-printf "├┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┴┤\n"
-printf "│       %s       │\n" "$report_title"
-printf "│            TR-100 MACHINE REPORT           │\n"
-printf "├────────────┬───────────────────────────────┤\n"
-printf "│ %-10s │ %-29s │\n" "OS" "$os_name"
-printf "│ %-10s │ %-29s │\n" "KERNEL" "$os_kernel"
-printf "├────────────┼───────────────────────────────┤\n"
-printf "│ %-10s │ %-29s │\n" "HOSTNAME" "$net_hostname"
-printf "│ %-10s │ %-29s │\n" "MACHINE IP" "$net_machine_ip"
-printf "│ %-10s │ %-29s │\n" "CLIENT  IP" "$net_client_ip"
+# Set current length before graphs get calculated
+set_current_len
 
-# Sometimes we have multiple dns IPs
-for dns_num in "${!net_dns_ip[@]}"; do
-    printf "│ %-10s │ %-29s │\n" "DNS  IP $(($dns_num + 1))" "${net_dns_ip[dns_num]}"
-done
+# Create graphs
+cpu_1min_bar_graph=$(bar_graph "$load_avg_1min" "$cpu_cores")
+cpu_5min_bar_graph=$(bar_graph "$load_avg_5min" "$cpu_cores")
+cpu_15min_bar_graph=$(bar_graph "$load_avg_15min" "$cpu_cores")
 
-printf "│ %-10s │ %-29s │\n" "USER" "$net_current_user"
-printf "├────────────┼───────────────────────────────┤\n"
-printf "│ %-10s │ %-29s │\n" "PROCESSOR" "$cpu_model"
-printf "│ %-10s │ %-29s │\n" "CORES" "$cpu_cores_per_socket vCPU(s) / $cpu_sockets Socket(s)"
-printf "│ %-10s │ %-29s │\n" "HYPERVISOR" "$cpu_hypervisor"
-printf "│ %-10s │ %-29s │\n" "CPU FREQ" "$cpu_freq GHz"
-printf "│ %-10s │ %-29s │\n" "LOAD  1m" "$cpu_1min_bar_graph"
-printf "│ %-10s │ %-29s │\n" "LOAD  5m" "$cpu_5min_bar_graph"
-printf "│ %-10s │ %-29s │\n" "LOAD 15m" "$cpu_15min_bar_graph"
+mem_bar_graph=$(bar_graph "$mem_used" "$mem_total")
 
 if [ $zfs_present -eq 1 ]; then
-    printf "├────────────┼───────────────────────────────┤\n"
-    printf "│ %-10s │ %-29s │\n" "VOLUME" "$zfs_used_gb/$zfs_available_gb GB [$disk_percent%]"
-    printf "│ %-10s │ %-29s │\n" "DISK USAGE" "$disk_bar_graph"
-    printf "│ %-10s │ %-29s │\n" "ZFS HEALTH" "$zfs_health"
+    disk_bar_graph=$(bar_graph "$zfs_used" "$zfs_available")
 else
-    printf "├────────────┼───────────────────────────────┤\n"
-    printf "│ %-10s │ %-29s │\n" "VOLUME" "$root_used_gb/$root_total_gb GB [$disk_percent%]"
-    printf "│ %-10s │ %-29s │\n" "DISK USAGE" "$disk_bar_graph"
+    disk_bar_graph=$(bar_graph "$root_used" "$root_total")
 fi
 
-printf "├────────────┼───────────────────────────────┤\n"
-printf "│ %-10s │ %-29s │\n" "MEMORY" "${mem_used_gb}/${mem_total_gb} GiB [${mem_percent}%]"
-printf "│ %-10s │ %-29s │\n" "USAGE" "${mem_bar_graph}"
-printf "├────────────┼───────────────────────────────┤\n"
-printf "│ %-10s │ %-29s │\n" "LAST LOGIN" "$last_login_time"
+# Machine Report
+PRINT_HEADER
+PRINT_CENTERED_DATA "$report_title"
+PRINT_CENTERED_DATA "TR-100 MACHINE REPORT"
+PRINT_DIVIDER "top"
+PRINT_DATA "OS" "$os_name"
+PRINT_DATA "KERNEL" "$os_kernel"
+PRINT_DIVIDER
+PRINT_DATA "HOSTNAME" "$net_hostname"
+PRINT_DATA "MACHINE IP" "$net_machine_ip"
+PRINT_DATA "CLIENT  IP" "$net_client_ip"
+
+for dns_num in "${!net_dns_ip[@]}"; do
+    PRINT_DATA "DNS  IP $(($dns_num + 1))" "${net_dns_ip[dns_num]}"
+done
+
+PRINT_DATA "USER" "$net_current_user"
+PRINT_DIVIDER
+PRINT_DATA "PROCESSOR" "$cpu_model"
+PRINT_DATA "CORES" "$cpu_cores_per_socket vCPU(s) / $cpu_sockets Socket(s)"
+PRINT_DATA "HYPERVISOR" "$cpu_hypervisor"
+PRINT_DATA "CPU FREQ" "$cpu_freq GHz"
+PRINT_DATA "LOAD  1m" "$cpu_1min_bar_graph"
+PRINT_DATA "LOAD  5m" "$cpu_5min_bar_graph"
+PRINT_DATA "LOAD 15m" "$cpu_15min_bar_graph"
+
+if [ $zfs_present -eq 1 ]; then
+    PRINT_DIVIDER
+    PRINT_DATA "VOLUME" "$zfs_used_gb/$zfs_available_gb GB [$disk_percent%]"
+    PRINT_DATA "DISK USAGE" "$disk_bar_graph"
+    PRINT_DATA "ZFS HEALTH" "$zfs_health"
+else
+    PRINT_DIVIDER
+    PRINT_DATA "VOLUME" "$root_used_gb/$root_total_gb GB [$disk_percent%]"
+    PRINT_DATA "DISK USAGE" "$disk_bar_graph"
+fi
+
+PRINT_DIVIDER
+PRINT_DATA "MEMORY" "${mem_used_gb}/${mem_total_gb} GiB [${mem_percent}%]"
+PRINT_DATA "USAGE" "${mem_bar_graph}"
+PRINT_DIVIDER
+PRINT_DATA "LAST LOGIN" "$last_login_time"
 
 if [ $last_login_ip_present -eq 1 ]; then
-    printf "│ %-10s │ %-29s │\n" "" "$last_login_ip"
+    PRINT_DATA "" "$last_login_ip"
 fi
 
-printf "│ %-10s │ %-29s │\n" "UPTIME" "$sys_uptime"
-printf "└────────────┴───────────────────────────────┘\n"
+PRINT_DATA "UPTIME" "$sys_uptime"
+PRINT_DIVIDER "bottom"
